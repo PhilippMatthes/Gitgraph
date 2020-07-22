@@ -1,0 +1,119 @@
+Auth token: <input type="password" id="auth-token"></input>
+<button onclick="window.go()">Go</button>
+
+<div style="width: 100vw; height: 100vw; display: block;" id="container"></div>
+
+<script type="module">
+import { Octokit } from "https://cdn.pika.dev/@octokit/rest";
+import cytoscape from "https://cdn.pika.dev/cytoscape";
+
+window.go = () => {
+  const auth = document.getElementById('auth-token').value;
+
+  const octokit = new Octokit({
+    auth: auth,
+    userAgent: "Gitgraph",
+    log: {
+      debug: () => {},
+      info: () => {},
+      warn: console.log,
+      error: console.log
+    },
+    request: {
+      agent: undefined,
+      fetch: undefined,
+      timeout: 0
+    }
+  });
+
+  const listFollowingForUser = (username) => {
+    const configuration = {per_page: 100};
+    if (username === undefined) {
+      return octokit.users.listFollowedByAuthenticated(configuration);
+    }
+    configuration.username = username;
+    return octokit.users.listFollowingForUser(configuration);
+  };
+
+  const graph = cytoscape({
+    container: document.getElementById('container'),
+
+    style: [
+      {
+        selector: 'node',
+        style: {
+          'background-color': '#666',
+          'label': 'data(id)'
+        }
+      },
+
+      {
+        selector: 'edge',
+        style: {
+          'width': 3,
+          'line-color': '#ccc',
+          'target-arrow-color': '#ccc',
+          'target-arrow-shape': 'triangle',
+          'curve-style': 'bezier'
+        }
+      }
+    ]
+  });
+
+  graph.on('tap', 'node', (event) => {
+    const node = event.target;
+    const username = node.id();
+
+    listFollowingForUser(username)
+    .then((response) => {
+      for (let user of response.data) {
+        if (!graph.nodes(`#${user.login}`).length) {
+          graph.add({
+            data: {
+              id: user.login,
+            }
+          });
+        }
+
+        graph.add({
+          data: {
+            id: `${username} follows ${user.login}`,
+            source: username,
+            target: user.login
+          }
+        });
+
+        const eles = graph.$(`#${user.login}`);
+        eles.style('background-image', `url('${user.avatar_url}')`);
+        eles.style('background-fit', 'cover');
+        eles.style('height', '80');
+        eles.style('width', '80');
+      }
+
+      graph
+        .layout({
+          name: 'grid'
+        })
+        .run();
+    })
+  });
+
+  octokit.users
+    .getAuthenticated()
+    .then((response) => {
+      const user = response.data;
+
+      graph.add({
+        data: {
+          id: user.login,
+        }
+      });
+
+      const eles = graph.$(`#${user.login}`);
+      eles.style('background-image', `url('${user.avatar_url}')`);
+      eles.style('background-fit', 'cover');
+      eles.style('height', '80');
+      eles.style('width', '80');
+    });
+};
+</script>
