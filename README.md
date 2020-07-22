@@ -5,6 +5,7 @@ A tool to explore your Github friends
 
 ## Usage
 
+0. Visit <a href="https://philippmatthes.github.io/Gitgraph/index.html">the static website</a>.
 1. Create a personal access token
 2. Paste it into the field on the top left corner
 3. Click "go", you should see your profile (left, top corner) and be able to drag it into the middle of the window.
