@@ -1,14 +1,81 @@
-Auth token: <input type="password" id="auth-token"></input>
-<button onclick="window.go()">Go</button>
+<html>
 
-<div style="width: 100vw; height: 100vw; display: block;" id="container"></div>
+<head>
+
+<title>Gitgraph</title>
+
+<style>
+.center {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.padded {
+  padding: 1rem;
+}
+
+#floating-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100vw;
+}
+
+#auth-token-input {
+  border-radius: 2rem;
+  border-color: #eFf4f5;
+  border-style: solid;
+  background: #ecf0f1;
+
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+  transition: all 0.3s cubic-bezier(.25,.8,.25,1);
+}
+
+#auth-token-input:focus {
+  outline: none;
+  border-color: #fff;
+
+  box-shadow: 0 14px 28px rgba(0,0,0,0.25), 0 10px 10px rgba(0,0,0,0.22);
+}
+
+#container {
+  width: 100vw;
+  height: 100vh;
+  display: block;
+}
+</style>
+
+</head>
+
+<body>
+
+<div id="floating-top">
+  <div class="center padded">
+    <form onsubmit="return window.go()">
+      <input class="padded"
+            name="auth-token"
+            type="password"
+            id="auth-token-input"
+            placeholder="Auth Token"></input>
+    </form>
+  </div>
+</div>
+
+<div id="container"></div>
+
+</body>
+
+<script src="https://unpkg.com/cytoscape/dist/cytoscape.min.js"></script>
+<script src="https://unpkg.com/layout-base/layout-base.js"></script>
+<script src="https://unpkg.com/cose-base/cose-base.js"></script>
+<script src="https://unpkg.com/cytoscape-fcose/cytoscape-fcose.js"></script>
 
 <script type="module">
-import { Octokit } from "https://cdn.pika.dev/@octokit/rest";
-import cytoscape from "https://cdn.pika.dev/cytoscape";
+import { Octokit } from 'https://cdn.pika.dev/@octokit/rest';
 
 window.go = () => {
-  const auth = document.getElementById('auth-token').value;
+  const auth = document.getElementById('auth-token-input').value;
 
   const octokit = new Octokit({
     auth: auth,
@@ -26,15 +93,6 @@ window.go = () => {
     }
   });
 
-  const listFollowingForUser = (username) => {
-    const configuration = {per_page: 100};
-    if (username === undefined) {
-      return octokit.users.listFollowedByAuthenticated(configuration);
-    }
-    configuration.username = username;
-    return octokit.users.listFollowingForUser(configuration);
-  };
-
   const graph = cytoscape({
     container: document.getElementById('container'),
 
@@ -42,7 +100,6 @@ window.go = () => {
       {
         selector: 'node',
         style: {
-          'background-color': '#666',
           'label': 'data(id)'
         }
       },
@@ -51,10 +108,10 @@ window.go = () => {
         selector: 'edge',
         style: {
           'width': 3,
-          'line-color': '#ccc',
-          'target-arrow-color': '#ccc',
+          'line-color': '#444',
+          'target-arrow-color': '#444',
           'target-arrow-shape': 'triangle',
-          'curve-style': 'bezier'
+          'curve-style': 'straight'
         }
       }
     ]
@@ -64,38 +121,44 @@ window.go = () => {
     const node = event.target;
     const username = node.id();
 
-    listFollowingForUser(username)
-    .then((response) => {
-      for (let user of response.data) {
-        if (!graph.nodes(`#${user.login}`).length) {
+    octokit.users
+      .listFollowingForUser({
+        username: username,
+        per_page: 100
+      })
+      .then((response) => {
+        for (let user of response.data) {
+          if (!graph.nodes(`#${user.login}`).length) {
+            graph.add({
+              data: {
+                id: user.login,
+              }
+            });
+          }
+
           graph.add({
             data: {
-              id: user.login,
+              id: `${username} follows ${user.login}`,
+              source: username,
+              target: user.login
             }
           });
+
+          const eles = graph.$(`#${user.login}`);
+          eles.style('background-image', `url('${user.avatar_url}')`);
+          eles.style('background-fit', 'cover');
+          eles.style('height', '80');
+          eles.style('width', '80');
         }
 
-        graph.add({
-          data: {
-            id: `${username} follows ${user.login}`,
-            source: username,
-            target: user.login
-          }
-        });
-
-        const eles = graph.$(`#${user.login}`);
-        eles.style('background-image', `url('${user.avatar_url}')`);
-        eles.style('background-fit', 'cover');
-        eles.style('height', '80');
-        eles.style('width', '80');
-      }
-
-      graph
-        .layout({
-          name: 'grid'
-        })
-        .run();
-    })
+        graph
+          .layout({
+            name: 'fcose',
+            quality: 'proof',
+            idealEdgeLength: graph.$('*').length * 2
+          })
+          .run();
+      });
   });
 
   octokit.users
@@ -115,5 +178,11 @@ window.go = () => {
       eles.style('height', '80');
       eles.style('width', '80');
     });
+
+  document.getElementById('floating-top').remove();
+
+  return false;
 };
 </script>
+
+</html>

@@ -1,15 +1,14 @@
 # Gitgraph
 A tool to explore your Github friends
 
-<img alt="" src="Bildschirmfoto 2020-07-22 um 15.12.34.png">
+<img alt="" src="screenshot.png">
 
 ## Usage
 
 0. Visit <a href="https://philippmatthes.github.io/Gitgraph/index.html">the static website</a>.
 1. Create a personal access token
-2. Paste it into the field on the top left corner
-3. Click "go", you should see your profile (left, top corner) and be able to drag it into the middle of the window.
-4. Click on your profile to load all users you follow.
-5. Repeat from 4 to explore all of your followers.
+2. Paste it into the field and press return
+3. Click on your profile to load all users you follow.
+4. Repeat from 3 to explore all of your followers.
 
 Note that results are limited to 100 followed profiles.
