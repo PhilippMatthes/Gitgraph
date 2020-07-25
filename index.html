@@ -4,7 +4,13 @@
 
 <title>Gitgraph</title>
 
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300&display=swap" rel="stylesheet">
+
 <style>
+* {
+  font-family: 'Roboto', sans-serif;
+}
+
 .center {
   display: flex;
   justify-content: center;
@@ -22,7 +28,7 @@
   width: 100vw;
 }
 
-#auth-token-input {
+.form-input {
   border-radius: 2rem;
   border-color: #eFf4f5;
   border-style: solid;
@@ -32,7 +38,7 @@
   transition: all 0.3s cubic-bezier(.25,.8,.25,1);
 }
 
-#auth-token-input:focus {
+.form-input:focus {
   outline: none;
   border-color: #fff;
 
@@ -44,41 +50,54 @@
   height: 100vh;
   display: block;
 }
+
+.check {
+  display: inline-block;
+  transform: rotate(45deg);
+  height: var(--height);
+  width: var(--width);
+  border-bottom: var(--borderWidth) solid var(--borderColor);
+  border-right: var(--borderWidth) solid var(--borderColor);
+}
 </style>
 
 </head>
 
 <body>
 
+<!-- The token input form -->
 <div id="floating-top">
   <div class="center padded">
     <form onsubmit="return window.go()">
-      <input class="padded"
-            name="auth-token"
-            type="password"
-            id="auth-token-input"
-            placeholder="Auth Token"></input>
+      <input class="padded form-input"
+            name="username"
+            type="text"
+            id="username-input"
+            placeholder="Start with a GitHub username"></input>
     </form>
   </div>
 </div>
 
+<!-- The graph container -->
 <div id="container"></div>
 
 </body>
 
-<script src="https://unpkg.com/cytoscape/dist/cytoscape.min.js"></script>
-<script src="https://unpkg.com/layout-base/layout-base.js"></script>
-<script src="https://unpkg.com/cose-base/cose-base.js"></script>
-<script src="https://unpkg.com/cytoscape-fcose/cytoscape-fcose.js"></script>
+<!-- Include cytoscape as the graph engine -->
+<script src="assets/js/cytoscape.min.js"></script>
+
+<!-- Extensions for graph layouting with the cola layout -->
+<script src="assets/js/cola.min.js"></script>
+<script src="assets/js/cytoscape-cola.js"></script>
+
+<!-- Extension for an advanced node contextmenu -->
+<script src="assets/js/cytoscape-cxtmenu.js"></script>
 
 <script type="module">
 import { Octokit } from 'https://cdn.pika.dev/@octokit/rest';
 
 window.go = () => {
-  const auth = document.getElementById('auth-token-input').value;
-
   const octokit = new Octokit({
-    auth: auth,
     userAgent: "Gitgraph",
     log: {
       debug: () => {},
@@ -100,7 +119,7 @@ window.go = () => {
       {
         selector: 'node',
         style: {
-          'label': 'data(id)'
+          'label': 'data(id)',
         }
       },
 
@@ -108,8 +127,6 @@ window.go = () => {
         selector: 'edge',
         style: {
           'width': 3,
-          'line-color': '#444',
-          'target-arrow-color': '#444',
           'target-arrow-shape': 'triangle',
           'curve-style': 'straight'
         }
@@ -117,54 +134,87 @@ window.go = () => {
     ]
   });
 
-  graph.on('tap', 'node', (event) => {
-    const node = event.target;
-    const username = node.id();
+  const nodeActions = {
+    openProfile: (node) => {
+      window.open(`https://github.com/${node.id()}`);
+    },
+    expandGraph: (node) => {
+      const username = node.id();
 
-    octokit.users
-      .listFollowingForUser({
-        username: username,
-        per_page: 100
-      })
-      .then((response) => {
-        for (let user of response.data) {
-          if (!graph.nodes(`#${user.login}`).length) {
+      octokit.users
+        .listFollowingForUser({
+          username: username,
+          per_page: 100
+        })
+        .then((response) => {
+          for (let user of response.data) {
+            if (!graph.nodes(`#${user.login}`).length) {
+              graph.add({
+                data: {
+                  id: user.login,
+                }
+              });
+            }
+
             graph.add({
               data: {
-                id: user.login,
+                id: `${username} follows ${user.login}`,
+                source: username,
+                target: user.login
               }
             });
+
+            const eles = graph.$(`#${user.login}`);
+            eles.style('background-image', `url('${user.avatar_url}')`);
+            eles.style('background-fit', 'cover');
+            eles.addClass('check');
           }
 
-          graph.add({
-            data: {
-              id: `${username} follows ${user.login}`,
-              source: username,
-              target: user.login
-            }
-          });
+          for (let node of graph.nodes('*')) {
+            let size = node.indegree() * 40;
+            node.style('width', `${size}`);
+            node.style('height', `${size}`);
+          }
 
-          const eles = graph.$(`#${user.login}`);
-          eles.style('background-image', `url('${user.avatar_url}')`);
-          eles.style('background-fit', 'cover');
-          eles.style('height', '80');
-          eles.style('width', '80');
-        }
+          graph
+            .layout({
+              name: 'cola',
+              fit: false,
+              nodeDimensionsIncludeLabels: true,
+            })
+            .run();
+        });
+    }
+  }
 
-        graph
-          .layout({
-            name: 'fcose',
-            quality: 'proof',
-            idealEdgeLength: graph.$('*').length * 2
-          })
-          .run();
-      });
+  const contextMenu = graph.cxtmenu({
+    commands: [
+      {
+        content: 'Visit Github Profile',
+        select: nodeActions.openProfile,
+        enabled: true
+      },
+      {
+        content: 'Expand Graph',
+        select: nodeActions.expandGraph,
+        enabled: true
+      }
+    ]
   });
 
+  graph.on('tap', 'node', (event) => {
+    const node = event.target;
+    nodeActions.expandGraph(node);
+  });
+
+  const username = document.getElementById('username-input').value;
+
   octokit.users
-    .getAuthenticated()
+    .getByUsername({ username: username })
     .then((response) => {
       const user = response.data;
+
+      document.getElementById('floating-top').remove();
 
       graph.add({
         data: {
@@ -175,11 +225,10 @@ window.go = () => {
       const eles = graph.$(`#${user.login}`);
       eles.style('background-image', `url('${user.avatar_url}')`);
       eles.style('background-fit', 'cover');
-      eles.style('height', '80');
-      eles.style('width', '80');
+    })
+    .catch((error) => {
+      alert('No user with this username found or API unavailable.');
     });
-
-  document.getElementById('floating-top').remove();
 
   return false;
 };
